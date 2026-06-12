@@ -53,7 +53,7 @@ body{
 
 /* ---------- Toolbar ---------- */
 #bar{
-  display:flex; align-items:center; gap:7px;
+  display:flex; align-items:center; gap:6px;
   padding:calc(6px + env(safe-area-inset-top))
           calc(12px + env(safe-area-inset-right))
           6px
@@ -130,7 +130,7 @@ body{
           calc(6px + env(safe-area-inset-left));
 }
 #keyboard{
-  height:clamp(218px, 36dvh, 400px);
+  height:var(--kb-h, clamp(218px, 36dvh, 400px));
   display:grid; gap:5px;
   grid-template-columns:1.12fr repeat(6,1fr) 1fr 1fr 1.12fr;
   grid-template-rows:repeat(5,1fr);
@@ -194,10 +194,47 @@ body{
   pointer-events:none; z-index:6;
   transition:opacity .25s;
 }
+#kbHandle{display:none;}
+#settings{
+  position:fixed; inset:0; z-index:80; background:rgba(0,0,0,.45);
+  display:flex; align-items:flex-end; justify-content:center;
+}
+#settings[hidden]{display:none;}
+#settings .sheet{
+  background:var(--panel); border:1px solid var(--line);
+  border-radius:16px 16px 0 0;
+  padding:16px 18px calc(16px + env(safe-area-inset-bottom));
+  width:min(460px, 100%);
+}
+.sheet h2{
+  font-size:13px; font-weight:700; letter-spacing:.18em; text-transform:uppercase;
+  color:var(--ink-dim); margin-bottom:4px;
+}
+.srow{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:11px 0; border-bottom:1px solid var(--line); font-size:15px;
+}
+.srow small{display:block; font-size:11px; color:var(--ink-dim); font-weight:400;}
+.seg{display:flex; gap:5px;}
+.seg button, .mini{
+  font:inherit; font-size:13px; font-weight:600;
+  background:var(--key-ctl); color:var(--key-ctl-ink);
+  border:1px solid var(--line); border-radius:8px;
+  padding:7px 12px; cursor:pointer; -webkit-tap-highlight-color:transparent;
+}
+.seg button.on{background:var(--accent); color:var(--accent-ink); border-color:transparent;}
+.mini.wide{width:100%; margin-top:12px; padding:10px;}
+.note{font-size:12px; color:var(--ink-dim); line-height:1.5; padding:10px 0 0;}
+#kbwrap.anchor-left  #keyboard, #kbwrap.anchor-left  #sugbar, #kbwrap.anchor-left  #kbHandle{
+  margin-left:0; margin-right:auto; max-width:580px !important;
+}
+#kbwrap.anchor-right #keyboard, #kbwrap.anchor-right #sugbar, #kbwrap.anchor-right #kbHandle{
+  margin-left:auto; margin-right:0; max-width:580px !important;
+}
 
 /* ---- Short viewports: iPhone landscape ---- */
 @media (max-height:520px){
-  #keyboard{height:clamp(148px, 48dvh, 250px);}
+  #keyboard{height:var(--kb-h, clamp(148px, 48dvh, 250px));}
   #sugbar{height:30px; margin-bottom:5px;}
   .sug{font-size:14px;}
   #bar{padding-top:calc(2px + env(safe-area-inset-top)); padding-bottom:4px;}
@@ -210,8 +247,15 @@ body{
 
 /* ---- Large screens: iPad ---- */
 @media (min-width:768px) and (min-height:700px){
-  #keyboard{height:clamp(280px, 34dvh, 460px); max-width:980px;}
+  #keyboard{height:var(--kb-h, clamp(280px, 34dvh, 460px)); max-width:980px;}
   #sugbar{max-width:980px; height:46px;}
+  #kbHandle{
+    display:flex; justify-content:center; align-items:center;
+    height:18px; margin:-4px auto 3px; max-width:980px;
+    touch-action:none; cursor:ns-resize;
+    -webkit-user-select:none; user-select:none;
+  }
+  #kbHandle span{width:64px; height:5px; border-radius:3px; background:var(--ink-dim); opacity:.5;}
   .sug{font-size:18px;}
   #editor{font-size:20px;}
   .key{--radius:12px;}
@@ -228,6 +272,9 @@ body{
   <h1>Fital<span>y</span></h1>
   <div id="count">0</div>
   <div class="spacer"></div>
+  <button class="tbtn" id="setBtn" aria-label="Settings" title="Settings">
+    <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.7" style="fill:currentColor;stroke:none"/><circle cx="12" cy="12" r="1.7" style="fill:currentColor;stroke:none"/><circle cx="19" cy="12" r="1.7" style="fill:currentColor;stroke:none"/></svg>
+  </button>
   <button class="tbtn" id="scrollBtn" aria-label="Toggle scroll gesture" title="Scroll gesture">
     <svg viewBox="0 0 24 24"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg><span id="scrollN">2</span>
   </button>
@@ -249,8 +296,33 @@ body{
 <div id="bubble"><span class="b-char"></span><span class="b-tag"></span></div>
 <div id="toast"></div>
 
+<div id="settings" hidden>
+  <div class="sheet">
+    <h2>Settings</h2>
+    <div class="srow"><span>Keyboard anchor <small>(iPad)</small></span>
+      <div class="seg">
+        <button data-anchor="left">Left</button><button data-anchor="full">Full</button><button data-anchor="right">Right</button>
+      </div>
+    </div>
+    <div class="srow"><span>Keyboard height <small>(iPad — drag the bar above the keyboard)</small></span>
+      <button class="mini" id="kbhReset">Reset</button>
+    </div>
+    <div class="srow"><span>Learned dictionary</span>
+      <div class="seg">
+        <button class="mini" id="dictExport">Export</button><button class="mini" id="dictImport">Import</button>
+      </div>
+    </div>
+    <p class="note">Long-press a suggestion to remove a learned word. Export opens the share
+    sheet — AirDrop the file to your other device and Import it there to carry your
+    vocabulary across.</p>
+    <button class="mini wide" id="settingsClose">Done</button>
+  </div>
+</div>
+<input type="file" id="dictFile" accept=".json,application/json" hidden>
+
 <div id="kbwrap">
   <canvas id="trail"></canvas>
+  <div id="kbHandle"><span></span></div>
   <div id="sugbar">
     <div class="sug"></div><div class="sug"></div><div class="sug"></div>
   </div>
@@ -442,7 +514,10 @@ function insertText(t){
   /* a separator finishes the word before the caret — learn it */
   if (t === ' ' || t === '\n' || t === '\t' || /^[^A-Za-z']$/.test(t)){
     const ctx = currentPrefix();
-    if (ctx) learnWord(ctx.text);
+    if (ctx){
+      const lw = learnWord(ctx.text);
+      if (lw) learnBigram(prevWordBefore(ctx.start), lw);
+    }
   }
   insertRaw(t);
   caretIntoView();
@@ -967,10 +1042,61 @@ function saveDict(){
 
 function learnWord(w){
   w = w.toLowerCase();
-  if (w.length < 2 || w.length > 24) return;
-  if (!/^[a-z][a-z']*$/.test(w)) return;
+  if (w.length < 2 || w.length > 24) return null;
+  if (!/^[a-z][a-z']*$/.test(w)) return null;
   userDict[w] = (userDict[w] || 0) + 1;
   saveDict();
+  return w;
+}
+
+/* ---- personal next-word prediction (bigram table) ---- */
+let bigrams = {};
+try {
+  const rawBg = localStorage.getItem('fitaly-bigrams');
+  if (rawBg) bigrams = JSON.parse(rawBg) || {};
+} catch(e){ bigrams = {}; }
+let bgTid = 0;
+function saveBigrams(){
+  if (!storageOK) return;
+  clearTimeout(bgTid);
+  bgTid = setTimeout(() => {
+    try {
+      let s = JSON.stringify(bigrams);
+      if (s.length > 80000){           // prune rare pairs if the table grows big
+        for (const p in bigrams){
+          const m = bigrams[p];
+          for (const n in m) if (m[n] < 2) delete m[n];
+          if (!Object.keys(m).length) delete bigrams[p];
+        }
+        s = JSON.stringify(bigrams);
+      }
+      localStorage.setItem('fitaly-bigrams', s);
+    } catch(e){}
+  }, 900);
+}
+function learnBigram(prev, next){
+  if (!prev || !next || prev === next) return;
+  let m = bigrams[prev];
+  if (!m) m = bigrams[prev] = {};
+  m[next] = (m[next] || 0) + 1;
+  const ks = Object.keys(m);
+  if (ks.length > 12){                 // keep only the strongest followers
+    ks.sort((a,b) => m[a] - m[b]);
+    delete m[ks[0]];
+  }
+  saveBigrams();
+}
+/* the complete word immediately before pos (spaces allowed between),
+   or null if anything else (punctuation, newline) intervenes */
+function prevWordBefore(pos){
+  const v = editor.value;
+  let i = pos;
+  while (i > 0 && v[i-1] === ' ') i--;
+  if (i === 0 || !/[A-Za-z']/.test(v[i-1])) return null;
+  let j = i;
+  while (j > 0 && /[A-Za-z']/.test(v[j-1])) j--;
+  const w = v.slice(j, i).toLowerCase();
+  return /^[a-z][a-z']*$/.test(w) ? w : null;
 }
 
 function wordStartBefore(pos){
@@ -1003,6 +1129,14 @@ function swipeCase(w){
   if (swipeAlts.capd)    return w.charAt(0).toUpperCase() + w.slice(1);
   return w;
 }
+let sugMode = 'prefix';            // 'prefix' completion or 'next' word prediction
+function cap1(w){ return w.charAt(0).toUpperCase() + w.slice(1); }
+function nextWordContext(){
+  if (editor.selectionStart !== editor.selectionEnd) return null;
+  const pos = editor.selectionStart;
+  if (pos === 0 || editor.value.charAt(pos-1) !== ' ') return null;
+  return prevWordBefore(pos);
+}
 function computeSuggestions(){
   if (swipeAlts){
     if (editor.selectionStart === editor.selectionEnd
@@ -1016,6 +1150,21 @@ function computeSuggestions(){
   }
   const ctx = currentPrefix();
   SUGS = [];
+  sugMode = 'prefix';
+  if (!ctx){
+    /* between words: predict the next word from your own bigrams */
+    const prev = nextWordContext();
+    const m = prev && bigrams[prev];
+    if (m){
+      SUGS = Object.keys(m).sort((a,b) => m[b] - m[a]).slice(0, 3);
+      sugMode = 'next';
+      const cap = isUpper();
+      sugEls.forEach((el, i) => {
+        el.textContent = SUGS[i] ? (cap ? cap1(SUGS[i]) : SUGS[i]) : '';
+      });
+      return;
+    }
+  }
   if (ctx){
     const p = ctx.text.toLowerCase();
     const seen = new Set();
@@ -1047,27 +1196,74 @@ function computeSuggestions(){
 function acceptSuggestion(i){
   const raw = SUGS[i];
   if (!raw) return;
+  if (sugMode === 'next'){
+    const startPos = editor.selectionStart;
+    focusEditor();
+    insertText((isUpper() ? cap1(raw) : raw) + ' ');
+    autoSpacePos = editor.selectionEnd;
+    const lw = learnWord(raw);
+    if (lw) learnBigram(prevWordBefore(startPos), lw);
+    consumeShift();
+    computeSuggestions();                   // chain to the next prediction
+    return;
+  }
   const ctx = currentPrefix();
   if (!ctx) return;
   focusEditor();
   editor.setSelectionRange(ctx.start, ctx.pos);
   insertText(matchCase(raw, ctx.text) + ' ');
   autoSpacePos = editor.selectionEnd;       // arm smart punctuation
-  learnWord(raw);
+  const lw = learnWord(raw);
+  if (lw) learnBigram(prevWordBefore(ctx.start), lw);
   consumeShift();
 }
 
 sugbar.addEventListener('touchstart', e => e.preventDefault(), {passive:false});
+let sugLP = 0, sugLPFired = false;
 sugbar.addEventListener('pointerdown', e => {
   const el = e.target.closest('.sug');
   if (!el || !el.textContent) return;
   e.preventDefault();
   el.classList.add('down');
-  setTimeout(() => el.classList.remove('down'), 160);
+  sugLPFired = false;
+  const idx = sugEls.indexOf(el);
+  sugLP = setTimeout(() => {
+    sugLPFired = true;
+    el.classList.remove('down');
+    removeLearned(idx);
+  }, 550);
+});
+sugbar.addEventListener('pointerup', e => {
+  clearTimeout(sugLP);
+  sugEls.forEach(x => x.classList.remove('down'));
+  if (sugLPFired) return;
+  const el = e.target.closest('.sug');
+  if (!el || !el.textContent) return;
   const idx = sugEls.indexOf(el);
   if (swipeAlts) acceptSwipeAlt(idx);
   else acceptSuggestion(idx);
 });
+sugbar.addEventListener('pointercancel', () => {
+  clearTimeout(sugLP);
+  sugEls.forEach(x => x.classList.remove('down'));
+});
+function removeLearned(idx){
+  const w = swipeAlts ? swipeAlts.words[idx] : SUGS[idx];
+  if (!w) return;
+  if (!userDict[w]){
+    flash('Built-in dictionary word — kept');
+    return;
+  }
+  delete userDict[w];
+  delete bigrams[w];
+  for (const p in bigrams){
+    if (bigrams[p][w]) delete bigrams[p][w];
+    if (!Object.keys(bigrams[p]).length) delete bigrams[p];
+  }
+  saveDict(); saveBigrams();
+  flash('Removed "' + w + '" from your dictionary');
+  computeSuggestions();
+}
 
 /* recompute when text changes or the caret moves */
 let selRaf = 0;
@@ -1254,7 +1450,8 @@ function insertSwipeWord(words){
     pos:  caret
   };
   autoSpacePos = caret;
-  learnWord(raw);
+  const lw = learnWord(raw);
+  if (lw) learnBigram(prevWordBefore(swipeAlts.from), lw);
   consumeShift();
   caretIntoView(); computeSuggestions(); updateAutoCap();
 }
@@ -1274,7 +1471,8 @@ function acceptSwipeAlt(i){
   a.current = alt;
   a.to = newTo; a.pos = newTo + 1;
   autoSpacePos = a.pos;
-  learnWord(alt);
+  const lw = learnWord(alt);
+  if (lw) learnBigram(prevWordBefore(a.from), lw);
   caretIntoView(); computeSuggestions();
 }
 
@@ -1322,13 +1520,145 @@ function endTrail(){
   }, 260);
 }
 
+/* ---------------- Settings: anchoring, height, dictionary I/O ---------------- */
+const settingsEl = document.getElementById('settings');
+const setBtn     = document.getElementById('setBtn');
+const kbHandle   = document.getElementById('kbHandle');
+
+setBtn.addEventListener('click', () => {
+  settingsEl.hidden = false;
+  refreshAnchorSeg();
+});
+document.getElementById('settingsClose').addEventListener('click', () => settingsEl.hidden = true);
+settingsEl.addEventListener('click', e => { if (e.target === settingsEl) settingsEl.hidden = true; });
+
+/* ---- one-hand keyboard anchoring (persisted; visible effect on iPad) ---- */
+let kbAnchor = 'full';
+try { kbAnchor = localStorage.getItem('fitaly-anchor') || 'full'; } catch(e){}
+function applyAnchor(){
+  kbwrapEl.classList.toggle('anchor-left',  kbAnchor === 'left');
+  kbwrapEl.classList.toggle('anchor-right', kbAnchor === 'right');
+  invalidateKeyGeometry();
+}
+function refreshAnchorSeg(){
+  settingsEl.querySelectorAll('[data-anchor]').forEach(b =>
+    b.classList.toggle('on', b.dataset.anchor === kbAnchor));
+}
+settingsEl.querySelectorAll('[data-anchor]').forEach(b => {
+  b.addEventListener('click', () => {
+    kbAnchor = b.dataset.anchor;
+    try { localStorage.setItem('fitaly-anchor', kbAnchor); } catch(e){}
+    applyAnchor(); refreshAnchorSeg();
+  });
+});
+
+/* ---- adjustable keyboard height via drag handle (iPad; persisted) ---- */
+let kbhSaved = null;
+try { kbhSaved = parseInt(localStorage.getItem('fitaly-kbh'), 10) || null; } catch(e){}
+function applyKbHeight(){
+  if (kbhSaved && window.innerWidth >= 768){
+    document.documentElement.style.setProperty('--kb-h', kbhSaved + 'px');
+  } else {
+    document.documentElement.style.removeProperty('--kb-h');
+  }
+  invalidateKeyGeometry();
+}
+let kbhDrag = null;
+kbHandle.addEventListener('touchstart', e => e.preventDefault(), {passive:false});
+kbHandle.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  try { kbHandle.setPointerCapture(e.pointerId); } catch(err){}
+  kbhDrag = { y0: e.clientY, h0: kb.offsetHeight };
+});
+kbHandle.addEventListener('pointermove', e => {
+  if (!kbhDrag) return;
+  const h = Math.max(210, Math.min(Math.round(window.innerHeight * 0.6), 580,
+            kbhDrag.h0 + (kbhDrag.y0 - e.clientY)));
+  document.documentElement.style.setProperty('--kb-h', h + 'px');
+  kbhDrag.h = h;
+});
+function endKbhDrag(){
+  if (!kbhDrag) return;
+  if (kbhDrag.h){
+    kbhSaved = kbhDrag.h;
+    try { localStorage.setItem('fitaly-kbh', String(kbhSaved)); } catch(e){}
+  }
+  kbhDrag = null;
+  invalidateKeyGeometry();
+}
+kbHandle.addEventListener('pointerup', endKbhDrag);
+kbHandle.addEventListener('pointercancel', endKbhDrag);
+document.getElementById('kbhReset').addEventListener('click', () => {
+  kbhSaved = null;
+  try { localStorage.removeItem('fitaly-kbh'); } catch(e){}
+  applyKbHeight();
+  flash('Keyboard height reset');
+});
+
+/* ---- learned-dictionary export / import ---- */
+document.getElementById('dictExport').addEventListener('click', async () => {
+  const data = JSON.stringify({app:'fitaly', version:1, words:userDict, bigrams});
+  const file = new File([data], 'fitaly-dictionary.json', {type:'application/json'});
+  if (navigator.canShare && navigator.canShare({files:[file]})){
+    try { await navigator.share({files:[file], title:'Fitaly dictionary'}); return; }
+    catch(e){ if (e && e.name === 'AbortError') return; }
+  }
+  try {
+    const url = URL.createObjectURL(file);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'fitaly-dictionary.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  } catch(e){ flash('Export failed'); }
+});
+const dictFile = document.getElementById('dictFile');
+document.getElementById('dictImport').addEventListener('click', () => dictFile.click());
+dictFile.addEventListener('change', () => {
+  const f = dictFile.files && dictFile.files[0];
+  if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => {
+    try {
+      const d = JSON.parse(rd.result);
+      if (!d || d.app !== 'fitaly' || typeof d.words !== 'object') throw 0;
+      let nw = 0;
+      for (const w in d.words){
+        const c = d.words[w];
+        if (typeof c === 'number' && /^[a-z][a-z']*$/.test(w) && w.length <= 24){
+          userDict[w] = (userDict[w] || 0) + c; nw++;
+        }
+      }
+      if (d.bigrams && typeof d.bigrams === 'object'){
+        for (const p in d.bigrams){
+          if (!/^[a-z][a-z']*$/.test(p)) continue;
+          for (const n in d.bigrams[p]){
+            const c = d.bigrams[p][n];
+            if (typeof c === 'number' && /^[a-z][a-z']*$/.test(n)){
+              let m = bigrams[p]; if (!m) m = bigrams[p] = {};
+              m[n] = (m[n] || 0) + c;
+            }
+          }
+        }
+      }
+      saveDict(); saveBigrams(); computeSuggestions();
+      flash('Imported ' + nw + ' words');
+    } catch(e){ flash('Not a Fitaly dictionary file'); }
+    dictFile.value = '';
+  };
+  rd.readAsText(f);
+});
+
 /* ---------------- Adaptive fullscreen height ---------------- */
 /* dvh handles most cases; this covers rotation, older WebKit quirks and
    in-app browsers by pinning the layout to the real visual viewport. */
 function setAppHeight(){
-  const h = (window.visualViewport ? window.visualViewport.height : window.innerHeight);
+  const vv = window.visualViewport;
+  const h = Math.max(window.innerHeight || 0,
+                     vv ? vv.height : 0,
+                     document.documentElement.clientHeight || 0);
   document.documentElement.style.setProperty('--app-h', Math.round(h) + 'px');
   invalidateKeyGeometry();
+  applyKbHeight();
 }
 setAppHeight();
 if (window.visualViewport){
@@ -1352,6 +1682,8 @@ try {
 
 buildKeyboard();
 updateAutoCap();
+applyAnchor();
+applyKbHeight();
 </script>
 </body>
 </html>

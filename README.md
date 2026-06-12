@@ -35,6 +35,13 @@ the letter panel only.
 - **Word suggestions**: the bar above the keyboard completes the word at the
   caret from a 20,000-word frequency dictionary, and learns the words you
   type — your own vocabulary rises to the top over time (stored on-device).
+  Between words, it predicts the next word from your own writing (a personal
+  bigram table). Long-press a suggestion to remove a learned word.
+  Settings (… button) exports/imports the learned dictionary as a file —
+  AirDrop it between iPhone and iPad to carry your vocabulary across.
+- **iPad**: drag the slim bar above the suggestions to resize the keyboard
+  (persisted), and anchor the keyboard Left/Full/Right in Settings for
+  one-handed use.
   Smart punctuation: typing . , ! ? : ; immediately after an accepted
   suggestion pulls the punctuation back before the auto-space
 - **2-finger scroll** is on by default (one finger places the cursor / selects);
