@@ -123,7 +123,7 @@ body{
   flex:0 0 auto; background:var(--bg);
   border-top:1px solid var(--line);
   padding:8px calc(6px + env(safe-area-inset-right))
-          calc(6px + max(env(safe-area-inset-bottom, 0px), 22px))
+          calc(6px + max(env(safe-area-inset-bottom, 0px), 28px))
           calc(6px + env(safe-area-inset-left));
 }
 #keyboard{
@@ -1533,7 +1533,7 @@ setBtn.addEventListener('click', () => {
   refreshAnchorSeg();
   const vv = window.visualViewport;
   document.getElementById('diag').textContent =
-    'v17 · viewport ' + gAppW + 'x' + gAppH
+    'v18 · viewport ' + gAppW + 'x' + gAppH + (gExt ? ' (+' + gExt + ')' : '')
     + ' · inner ' + window.innerWidth + 'x' + window.innerHeight
     + ' · screen ' + screen.width + 'x' + screen.height
     + (vv ? ' · vv ' + Math.round(vv.width) + 'x' + Math.round(vv.height) : '')
@@ -1580,7 +1580,13 @@ handleToggle.addEventListener('click', () => {
 
 /* ---- adjustable keyboard height via drag handle (persisted) ---- */
 let kbhSaved = null;
-try { kbhSaved = parseInt(localStorage.getItem('fitaly-kbh'), 10) || null; } catch(e){}
+try {
+  if (!localStorage.getItem('fitaly-mig18')){
+    localStorage.removeItem('fitaly-kbh');   // saved under broken viewport sizing
+    localStorage.setItem('fitaly-mig18', '1');
+  }
+  kbhSaved = parseInt(localStorage.getItem('fitaly-kbh'), 10) || null;
+} catch(e){}
 function kbhClamp(h){
   return Math.max(170, Math.min(Math.round(gAppH * 0.58), 620, h));
 }
@@ -1683,17 +1689,36 @@ dictFile.addEventListener('change', () => {
    measuring it yields the page's REAL fixed-position viewport — the same
    box the body occupies. All layout maths derive from this, so the app
    can neither overflow (clipped keys) nor undershoot (dead space). */
-/* Sizing doctrine (final): the app NEVER draws beyond the viewport iOS
-   currently grants (so clipping is impossible), keys always keep a fixed
-   clearance above its bottom edge, and a ResizeObserver on the probe
-   re-flows the layout the instant iOS revises the viewport — the reported
-   size has proven to change between and even within launches. */
+/* Sizing doctrine (final). Measured across sessions, iOS standalone
+   withholds a varying strip (0 / 47 / 81pt observed) from the bottom of
+   the layout viewport while rendering content placed there, and the page
+   top is always the screen top. screen.height is the one constant. So:
+   in full-width standalone, the body's bottom edge is anchored to the
+   PHYSICAL screen bottom, and the keys keep a constant 34px clearance
+   above it — making the final geometry identical no matter which deficit
+   iOS reports, this session or mid-session. */
 const vpProbe = document.getElementById('vpProbe');
-let gAppH = 600, gAppW = 390;
+let gAppH = 600, gAppW = 390, gExt = 0;
 function setAppHeight(){
-  document.body.style.height = '';          // body = granted viewport, exactly
-  gAppH = vpProbe.offsetHeight || window.innerHeight || 600;
-  gAppW = vpProbe.offsetWidth  || window.innerWidth  || 390;
+  document.body.style.height = '';
+  const icbH = vpProbe.offsetHeight || window.innerHeight || 600;
+  const icbW = vpProbe.offsetWidth  || window.innerWidth  || 390;
+  let h = icbH;
+  gExt = 0;
+  if (navigator.standalone){
+    const land = window.matchMedia('(orientation: landscape)').matches;
+    const scrH = land ? Math.min(screen.width, screen.height)
+                      : Math.max(screen.width, screen.height);
+    const scrW = land ? Math.max(screen.width, screen.height)
+                      : Math.min(screen.width, screen.height);
+    const deficit = scrH - icbH;
+    if (Math.abs(icbW - scrW) <= 2 && deficit > 0 && deficit <= 100){
+      h = scrH;
+      gExt = deficit;
+      document.body.style.height = h + 'px';
+    }
+  }
+  gAppH = h; gAppW = icbW;
   document.documentElement.style.setProperty('--app-h', gAppH + 'px');
   const wide = gAppW >= 768;
   let kbh;
