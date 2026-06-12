@@ -1533,7 +1533,7 @@ setBtn.addEventListener('click', () => {
   refreshAnchorSeg();
   const vv = window.visualViewport;
   document.getElementById('diag').textContent =
-    'v15 · viewport ' + gAppW + 'x' + gAppH
+    'v16 · viewport ' + gAppW + 'x' + gAppH + (gExt ? ' (+'+gExt+' reclaimed)' : '')
     + ' · inner ' + window.innerWidth + 'x' + window.innerHeight
     + ' · screen ' + screen.width + 'x' + screen.height
     + (vv ? ' · vv ' + Math.round(vv.width) + 'x' + Math.round(vv.height) : '')
@@ -1684,17 +1684,37 @@ dictFile.addEventListener('change', () => {
    box the body occupies. All layout maths derive from this, so the app
    can neither overflow (clipped keys) nor undershoot (dead space). */
 const vpProbe = document.getElementById('vpProbe');
-let gAppH = 600, gAppW = 390;
+let gAppH = 600, gAppW = 390, gExt = 0;
 function setAppHeight(){
-  gAppH = vpProbe.offsetHeight || window.innerHeight || 600;
-  gAppW = vpProbe.offsetWidth  || window.innerWidth  || 390;
-  document.documentElement.style.setProperty('--app-h', gAppH + 'px');
-  /* keyboard auto-height: proportioned to the real viewport */
+  const icbH = vpProbe.offsetHeight || window.innerHeight || 600;
+  const icbW = vpProbe.offsetWidth  || window.innerWidth  || 390;
+  let h = icbH;
+  gExt = 0;
+  /* iOS standalone withholds a bottom strip from the layout viewport but
+     demonstrably renders content placed there. When the app fills the
+     screen's width, extend the body to the physical screen height and
+     keep the keys 28px clear of the edge (native-keyboard clearance). */
+  if (navigator.standalone){
+    const land = window.matchMedia('(orientation: landscape)').matches;
+    const scrH = land ? Math.min(screen.width, screen.height)
+                      : Math.max(screen.width, screen.height);
+    const scrW = land ? Math.max(screen.width, screen.height)
+                      : Math.min(screen.width, screen.height);
+    const deficit = scrH - icbH;
+    if (Math.abs(icbW - scrW) <= 2 && deficit > 6 && deficit <= 140){
+      h = scrH;
+      gExt = deficit;
+    }
+  }
+  gAppH = h; gAppW = icbW;
+  document.body.style.height = h + 'px';
+  kbwrapEl.style.paddingBottom = gExt ? '28px' : '';
+  document.documentElement.style.setProperty('--app-h', h + 'px');
   const wide = gAppW >= 768;
   let kbh;
-  if (gAppH < 520)                kbh = Math.min(250, Math.max(148, Math.round(gAppH*0.50)));
-  else if (wide && gAppH >= 700)  kbh = Math.min(470, Math.max(280, Math.round(gAppH*0.38)));
-  else                            kbh = Math.min(410, Math.max(218, Math.round(gAppH*0.40)));
+  if (h < 520)                kbh = Math.min(250, Math.max(148, Math.round(h*0.48)));
+  else if (wide && h >= 700)  kbh = Math.min(470, Math.max(280, Math.round(h*0.36)));
+  else                        kbh = Math.min(410, Math.max(218, Math.round(h*0.37)));
   document.documentElement.style.setProperty('--kb-auto', kbh + 'px');
   invalidateKeyGeometry();
   applyKbHeight();
