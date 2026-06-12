@@ -38,14 +38,10 @@
   }
 }
 *{box-sizing:border-box; margin:0; padding:0;}
-html{height:-webkit-fill-available;}
 body{
   font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   background:var(--bg); color:var(--ink);
-  height:100vh;                       /* fallback chain: vh -> fill-available -> dvh -> JS var */
-  height:-webkit-fill-available;
-  height:100dvh;
-  height:var(--app-h, 100dvh);
+  position:fixed; inset:0;            /* pin to the real viewport on iOS */
   display:flex; flex-direction:column; overflow:hidden;
   overscroll-behavior:none;
   -webkit-text-size-adjust:100%;
@@ -126,7 +122,7 @@ body{
   flex:0 0 auto; background:var(--bg);
   border-top:1px solid var(--line);
   padding:8px calc(6px + env(safe-area-inset-right))
-          calc(8px + env(safe-area-inset-bottom))
+          calc(3px + env(safe-area-inset-bottom))
           calc(6px + env(safe-area-inset-left));
 }
 #keyboard{
@@ -194,7 +190,14 @@ body{
   pointer-events:none; z-index:6;
   transition:opacity .25s;
 }
-#kbHandle{display:none;}
+#kbHandle{
+  display:none; justify-content:center; align-items:center;
+  height:16px; margin:-2px auto 3px; max-width:900px;
+  touch-action:none; cursor:ns-resize;
+  -webkit-user-select:none; user-select:none;
+}
+#kbwrap.show-handle #kbHandle{display:flex;}
+#kbHandle span{width:64px; height:5px; border-radius:3px; background:var(--ink-dim); opacity:.5;}
 #settings{
   position:fixed; inset:0; z-index:80; background:rgba(0,0,0,.45);
   display:flex; align-items:flex-end; justify-content:center;
@@ -242,20 +245,14 @@ body{
   .tbtn{height:30px; min-width:38px; padding:0 9px;}
   .tbtn svg{width:15px; height:15px;}
   #editor{padding-top:8px; padding-bottom:12px; font-size:17px;}
-  #kbwrap{padding-top:5px; padding-bottom:calc(5px + env(safe-area-inset-bottom));}
+  #kbwrap{padding-top:5px; padding-bottom:calc(2px + env(safe-area-inset-bottom));}
 }
 
 /* ---- Large screens: iPad ---- */
 @media (min-width:768px) and (min-height:700px){
   #keyboard{height:var(--kb-h, clamp(280px, 34dvh, 460px)); max-width:980px;}
   #sugbar{max-width:980px; height:46px;}
-  #kbHandle{
-    display:flex; justify-content:center; align-items:center;
-    height:18px; margin:-4px auto 3px; max-width:980px;
-    touch-action:none; cursor:ns-resize;
-    -webkit-user-select:none; user-select:none;
-  }
-  #kbHandle span{width:64px; height:5px; border-radius:3px; background:var(--ink-dim); opacity:.5;}
+  #kbHandle{max-width:980px; height:18px;}
   .sug{font-size:18px;}
   #editor{font-size:20px;}
   .key{--radius:12px;}
@@ -299,12 +296,15 @@ body{
 <div id="settings" hidden>
   <div class="sheet">
     <h2>Settings</h2>
-    <div class="srow"><span>Keyboard anchor <small>(iPad)</small></span>
+    <div class="srow"><span>Keyboard anchor <small>one-handed use, iPad</small></span>
       <div class="seg">
         <button data-anchor="left">Left</button><button data-anchor="full">Full</button><button data-anchor="right">Right</button>
       </div>
     </div>
-    <div class="srow"><span>Keyboard height <small>(iPad — drag the bar above the keyboard)</small></span>
+    <div class="srow"><span>Resize handle <small>show, drag to set keyboard height, hide</small></span>
+      <button class="mini" id="handleToggle">Show</button>
+    </div>
+    <div class="srow"><span>Keyboard height <small>back to automatic</small></span>
       <button class="mini" id="kbhReset">Reset</button>
     </div>
     <div class="srow"><span>Learned dictionary</span>
@@ -1552,12 +1552,30 @@ settingsEl.querySelectorAll('[data-anchor]').forEach(b => {
   });
 });
 
-/* ---- adjustable keyboard height via drag handle (iPad; persisted) ---- */
+/* ---- show/hide the resize handle (persisted; all devices) ---- */
+let handleShown = false;
+try { handleShown = localStorage.getItem('fitaly-handle') === '1'; } catch(e){}
+const handleToggle = document.getElementById('handleToggle');
+function applyHandle(){
+  kbwrapEl.classList.toggle('show-handle', handleShown);
+  handleToggle.textContent = handleShown ? 'Hide' : 'Show';
+  invalidateKeyGeometry();
+}
+handleToggle.addEventListener('click', () => {
+  handleShown = !handleShown;
+  try { localStorage.setItem('fitaly-handle', handleShown ? '1' : '0'); } catch(e){}
+  applyHandle();
+});
+
+/* ---- adjustable keyboard height via drag handle (persisted) ---- */
 let kbhSaved = null;
 try { kbhSaved = parseInt(localStorage.getItem('fitaly-kbh'), 10) || null; } catch(e){}
+function kbhClamp(h){
+  return Math.max(170, Math.min(Math.round(window.innerHeight * 0.58), 620, h));
+}
 function applyKbHeight(){
-  if (kbhSaved && window.innerWidth >= 768){
-    document.documentElement.style.setProperty('--kb-h', kbhSaved + 'px');
+  if (kbhSaved){
+    document.documentElement.style.setProperty('--kb-h', kbhClamp(kbhSaved) + 'px');
   } else {
     document.documentElement.style.removeProperty('--kb-h');
   }
@@ -1572,8 +1590,7 @@ kbHandle.addEventListener('pointerdown', e => {
 });
 kbHandle.addEventListener('pointermove', e => {
   if (!kbhDrag) return;
-  const h = Math.max(210, Math.min(Math.round(window.innerHeight * 0.6), 580,
-            kbhDrag.h0 + (kbhDrag.y0 - e.clientY)));
+  const h = kbhClamp(kbhDrag.h0 + (kbhDrag.y0 - e.clientY));
   document.documentElement.style.setProperty('--kb-h', h + 'px');
   kbhDrag.h = h;
 });
@@ -1684,6 +1701,7 @@ buildKeyboard();
 updateAutoCap();
 applyAnchor();
 applyKbHeight();
+applyHandle();
 </script>
 </body>
 </html>

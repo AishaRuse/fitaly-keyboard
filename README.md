@@ -39,9 +39,11 @@ the letter panel only.
   bigram table). Long-press a suggestion to remove a learned word.
   Settings (… button) exports/imports the learned dictionary as a file —
   AirDrop it between iPhone and iPad to carry your vocabulary across.
-- **iPad**: drag the slim bar above the suggestions to resize the keyboard
-  (persisted), and anchor the keyboard Left/Full/Right in Settings for
-  one-handed use.
+- **Keyboard height**: Settings > Resize handle > Show reveals a slim drag
+  bar above the suggestions on any device — drag to set the keyboard height
+  (persisted), then Hide it to reclaim the space. Reset returns to automatic.
+- **iPad**: anchor the keyboard Left/Full/Right in Settings for one-handed
+  use.
   Smart punctuation: typing . , ! ? : ; immediately after an accepted
   suggestion pulls the punctuation back before the auto-space
 - **2-finger scroll** is on by default (one finger places the cursor / selects);
