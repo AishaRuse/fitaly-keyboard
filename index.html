@@ -41,7 +41,8 @@
 body{
   font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   background:var(--bg); color:var(--ink);
-  position:fixed; inset:0;            /* pin to the real viewport on iOS */
+  position:fixed; top:0; left:0; right:0; bottom:0;
+  height:var(--app-h, auto);          /* JS-measured; falls back to inset sizing */
   display:flex; flex-direction:column; overflow:hidden;
   overscroll-behavior:none;
   -webkit-text-size-adjust:100%;
@@ -99,7 +100,7 @@ body{
 /* ---------- Toast ---------- */
 #toast{
   position:fixed; left:50%; transform:translateX(-50%) translateY(8px);
-  bottom:calc(50dvh); background:var(--accent); color:var(--accent-ink);
+  bottom:50%; background:var(--accent); color:var(--accent-ink);
   font-size:13px; font-weight:700; padding:8px 16px; border-radius:99px;
   opacity:0; pointer-events:none; transition:opacity .18s, transform .18s; z-index:60;
 }
@@ -126,7 +127,7 @@ body{
           calc(6px + env(safe-area-inset-left));
 }
 #keyboard{
-  height:var(--kb-h, clamp(218px, 36dvh, 400px));
+  height:var(--kb-h, var(--kb-auto, 304px));
   display:grid; gap:5px;
   grid-template-columns:1.12fr repeat(6,1fr) 1fr 1fr 1.12fr;
   grid-template-rows:repeat(5,1fr);
@@ -137,7 +138,7 @@ body{
   position:relative; display:flex; align-items:center; justify-content:center;
   background:var(--key); color:var(--key-ink);
   border-radius:var(--radius);
-  font-size:clamp(15px, 2.5dvh, 22px); font-weight:500;
+  font-size:clamp(15px, calc(var(--app-h, 800px) * 0.025), 22px); font-weight:500;
   box-shadow:0 1px 0 rgba(0,0,0,.35);
   -webkit-tap-highlight-color:transparent;
 }
@@ -145,20 +146,20 @@ body{
 .key.core2{background:var(--key-core2);}
 .key.ctl{
   background:var(--key-ctl); color:var(--key-ctl-ink);
-  font-size:clamp(11px, 1.7dvh, 14px); font-weight:700; letter-spacing:.04em;
+  font-size:clamp(11px, calc(var(--app-h, 800px) * 0.017), 14px); font-weight:700; letter-spacing:.04em;
 }
-.key.ctl .glyph{font-size:clamp(16px,2.4dvh,21px); font-weight:500;}
+.key.ctl .glyph{font-size:clamp(16px, calc(var(--app-h, 800px) * 0.024), 21px); font-weight:500;}
 .key.space::after{
   content:""; position:absolute; left:22%; right:22%; bottom:26%;
   border-bottom:2px solid currentColor; opacity:.35; border-radius:2px;
 }
 .key .sub{
   position:absolute; right:5px; bottom:3px;
-  font-size:clamp(9px,1.4dvh,12px); font-weight:700; color:var(--accent); opacity:.85;
+  font-size:clamp(9px, calc(var(--app-h, 800px) * 0.014), 12px); font-weight:700; color:var(--accent); opacity:.85;
 }
 .key .alt{
   position:absolute; left:6px; top:3px;
-  font-size:clamp(9px,1.4dvh,11px); color:var(--ink-dim);
+  font-size:clamp(9px, calc(var(--app-h, 800px) * 0.014), 11px); color:var(--ink-dim);
 }
 .key.down{background:var(--accent) !important; color:var(--accent-ink) !important;}
 .key.down .sub, .key.down .alt{color:var(--accent-ink); opacity:.8;}
@@ -237,7 +238,6 @@ body{
 
 /* ---- Short viewports: iPhone landscape ---- */
 @media (max-height:520px){
-  #keyboard{height:var(--kb-h, clamp(148px, 48dvh, 250px));}
   #sugbar{height:30px; margin-bottom:5px;}
   .sug{font-size:14px;}
   #bar{padding-top:calc(2px + env(safe-area-inset-top)); padding-bottom:4px;}
@@ -250,7 +250,7 @@ body{
 
 /* ---- Large screens: iPad ---- */
 @media (min-width:768px) and (min-height:700px){
-  #keyboard{height:var(--kb-h, clamp(280px, 34dvh, 460px)); max-width:980px;}
+  #keyboard{max-width:980px;}
   #sugbar{max-width:980px; height:46px;}
   #kbHandle{max-width:980px; height:18px;}
   .sug{font-size:18px;}
@@ -315,6 +315,7 @@ body{
     <p class="note">Long-press a suggestion to remove a learned word. Export opens the share
     sheet — AirDrop the file to your other device and Import it there to carry your
     vocabulary across.</p>
+    <p class="note" id="diag"></p>
     <button class="mini wide" id="settingsClose">Done</button>
   </div>
 </div>
@@ -1528,6 +1529,13 @@ const kbHandle   = document.getElementById('kbHandle');
 setBtn.addEventListener('click', () => {
   settingsEl.hidden = false;
   refreshAnchorSeg();
+  const vv = window.visualViewport;
+  document.getElementById('diag').textContent =
+    'v12.1 · inner ' + window.innerWidth + 'x' + window.innerHeight
+    + ' · screen ' + screen.width + 'x' + screen.height
+    + (vv ? ' · vv ' + Math.round(vv.width) + 'x' + Math.round(vv.height) : '')
+    + ' · ' + (navigator.standalone ? 'standalone' : 'browser')
+    + ' · kb ' + kb.offsetHeight + 'px';
 });
 document.getElementById('settingsClose').addEventListener('click', () => settingsEl.hidden = true);
 settingsEl.addEventListener('click', e => { if (e.target === settingsEl) settingsEl.hidden = true; });
@@ -1571,7 +1579,7 @@ handleToggle.addEventListener('click', () => {
 let kbhSaved = null;
 try { kbhSaved = parseInt(localStorage.getItem('fitaly-kbh'), 10) || null; } catch(e){}
 function kbhClamp(h){
-  return Math.max(170, Math.min(Math.round(window.innerHeight * 0.58), 620, h));
+  return Math.max(170, Math.min(Math.round(gAppH * 0.58), 620, h));
 }
 function applyKbHeight(){
   if (kbhSaved){
@@ -1668,12 +1676,36 @@ dictFile.addEventListener('change', () => {
 /* ---------------- Adaptive fullscreen height ---------------- */
 /* dvh handles most cases; this covers rotation, older WebKit quirks and
    in-app browsers by pinning the layout to the real visual viewport. */
+let gAppH = window.innerHeight || 600;   // best-known real viewport height
 function setAppHeight(){
   const vv = window.visualViewport;
-  const h = Math.max(window.innerHeight || 0,
-                     vv ? vv.height : 0,
-                     document.documentElement.clientHeight || 0);
+  let h = Math.max(window.innerHeight || 0,
+                   vv ? vv.height : 0,
+                   document.documentElement.clientHeight || 0);
+  /* Installed PWAs occupy the whole screen, but iOS can briefly report a
+     short layout viewport to all of the above (and to dvh). The physical
+     screen cannot lie: in standalone mode, use it as the floor.
+     iOS screen.width/height are orientation-fixed, so pick by orientation. */
+  if (navigator.standalone){
+    const land = window.matchMedia('(orientation: landscape)').matches;
+    const scrH = land ? Math.min(screen.width, screen.height)
+                      : Math.max(screen.width, screen.height);
+    const scrW = land ? Math.max(screen.width, screen.height)
+                      : Math.min(screen.width, screen.height);
+    /* Only trust the physical screen when the app plausibly fills it:
+       in the misreporting bug the WIDTH is still correct, while in
+       Stage Manager / Split View the width differs — no floor there. */
+    if (Math.abs(window.innerWidth - scrW) <= 2 && scrH > h) h = scrH;
+  }
+  gAppH = h;
   document.documentElement.style.setProperty('--app-h', Math.round(h) + 'px');
+  /* keyboard auto-height computed from the same trusted measure */
+  const wide = window.innerWidth >= 768;
+  let kbh;
+  if (h < 520)            kbh = Math.min(250, Math.max(148, Math.round(h*0.48)));
+  else if (wide && h>=700) kbh = Math.min(460, Math.max(280, Math.round(h*0.34)));
+  else                    kbh = Math.min(400, Math.max(218, Math.round(h*0.36)));
+  document.documentElement.style.setProperty('--kb-auto', kbh + 'px');
   invalidateKeyGeometry();
   applyKbHeight();
 }
