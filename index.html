@@ -46,7 +46,7 @@ body{
   overscroll-behavior:none;
   -webkit-text-size-adjust:100%;
 }
-#vpProbe{position:fixed; inset:0; visibility:hidden; pointer-events:none; z-index:-1;}
+#vpProbe{position:fixed; inset:0; visibility:hidden; pointer-events:none; z-index:-1; padding-top:env(safe-area-inset-top, 0px);}
 
 /* ---------- Toolbar ---------- */
 #bar{
@@ -1533,7 +1533,8 @@ setBtn.addEventListener('click', () => {
   refreshAnchorSeg();
   const vv = window.visualViewport;
   document.getElementById('diag').textContent =
-    'v18 · viewport ' + gAppW + 'x' + gAppH + (gExt ? ' (+' + gExt + ')' : '')
+    'v19 · viewport ' + gAppW + 'x' + gAppH + (gExt ? ' (+' + gExt + ')' : '')
+    + ' · eT ' + (parseFloat(getComputedStyle(vpProbe).paddingTop) || 0)
     + ' · inner ' + window.innerWidth + 'x' + window.innerHeight
     + ' · screen ' + screen.width + 'x' + screen.height
     + (vv ? ' · vv ' + Math.round(vv.width) + 'x' + Math.round(vv.height) : '')
@@ -1712,7 +1713,13 @@ function setAppHeight(){
     const scrW = land ? Math.max(screen.width, screen.height)
                       : Math.min(screen.width, screen.height);
     const deficit = scrH - icbH;
-    if (Math.abs(icbW - scrW) <= 2 && deficit > 0 && deficit <= 100){
+    /* env(safe-area-inset-top) > 0 proves the page underlaps the status
+       bar, i.e. the page top IS the screen top — so the whole deficit
+       sits at the bottom and extending by it is exact (iPad). When it
+       reads 0 the page starts below the status bar and already reaches
+       the screen bottom — extending would clip (iPhone), so we don't. */
+    const envTop = parseFloat(getComputedStyle(vpProbe).paddingTop) || 0;
+    if (Math.abs(icbW - scrW) <= 2 && deficit > 0 && deficit <= 100 && envTop > 0){
       h = scrH;
       gExt = deficit;
       document.body.style.height = h + 'px';
