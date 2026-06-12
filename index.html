@@ -1533,7 +1533,7 @@ setBtn.addEventListener('click', () => {
   refreshAnchorSeg();
   const vv = window.visualViewport;
   document.getElementById('diag').textContent =
-    'v19 · viewport ' + gAppW + 'x' + gAppH + (gExt ? ' (+' + gExt + ')' : '')
+    'v20 · viewport ' + gAppW + 'x' + gAppH + (gExt ? ' (+' + gExt + ')' : '')
     + ' · eT ' + (parseFloat(getComputedStyle(vpProbe).paddingTop) || 0)
     + ' · inner ' + window.innerWidth + 'x' + window.innerHeight
     + ' · screen ' + screen.width + 'x' + screen.height
@@ -1719,7 +1719,7 @@ function setAppHeight(){
        reads 0 the page starts below the status bar and already reaches
        the screen bottom — extending would clip (iPhone), so we don't. */
     const envTop = parseFloat(getComputedStyle(vpProbe).paddingTop) || 0;
-    if (Math.abs(icbW - scrW) <= 2 && deficit > 0 && deficit <= 100 && envTop > 0){
+    if (Math.abs(icbW - scrW) <= 2 && deficit > 0 && deficit <= 100 && false){ // extension disabled: v19 data proved the iPhone page already touches the screen bottom
       h = scrH;
       gExt = deficit;
       document.body.style.height = h + 'px';
