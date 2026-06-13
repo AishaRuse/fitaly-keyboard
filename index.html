@@ -309,7 +309,7 @@ body{
     <div class="srow"><span>Keyboard height <small>back to automatic</small></span>
       <button class="mini" id="kbhReset">Reset</button>
     </div>
-    <div class="srow"><span>Autocorrect <small>fix obvious typos on space</small></span>
+    <div class="srow"><span>Autocorrect <small>fix typos, lone i, and contractions</small></span>
       <button class="mini" id="autocorrectToggle">On</button>
     </div>
     <div class="srow"><span>Learned dictionary</span>
@@ -725,7 +725,7 @@ function handleSpace(){
   if (autocorrectOn){
     const ctx = currentPrefix();
     if (ctx){
-      const fix = autocorrectWord(ctx.text);
+      const fix = smartFix(ctx.text);
       if (fix && fix !== ctx.text){
         focusEditor();
         editor.setSelectionRange(ctx.start, ctx.pos);
@@ -1216,6 +1216,36 @@ function autocorrectWord(typed){
   if (!best) return null;
   return isTitle ? best.charAt(0).toUpperCase() + best.slice(1) : best;
 }
+/* Safe contractions: the apostrophe-less key is essentially never a real word. */
+const CONTRACTIONS = {
+  dont:"don't", didnt:"didn't", doesnt:"doesn't", isnt:"isn't", arent:"aren't",
+  wasnt:"wasn't", werent:"weren't", wouldnt:"wouldn't", couldnt:"couldn't",
+  shouldnt:"shouldn't", havent:"haven't", hasnt:"hasn't", hadnt:"hadn't",
+  mustnt:"mustn't", im:"I'm", ive:"I've", youre:"you're", theyre:"they're",
+  weve:"we've", youve:"you've", theyve:"they've", theyll:"they'll",
+  youll:"you'll", wholl:"who'll", thats:"that's", whats:"what's", whos:"who's",
+  couldve:"could've", shouldve:"should've", wouldve:"would've", mustve:"must've"
+};
+/* Ambiguous forms: either a real word (its, were, cant...) or a contraction we
+   are not confident enough to auto-insert. Never auto-change these — this also
+   stops the typo autocorrect from mangling the non-word ones (hes -> his etc). */
+const PROTECT = new Set(['its','were','well','wont','cant','ill','id','lets',
+  'wed','hes','shes','youd','theyd','hed','itll','thatll','shed','id']);
+/* lone i -> I, then safe contractions, then typo autocorrect; honours the toggle */
+function smartFix(typed){
+  if (!autocorrectOn) return null;
+  if (typed === 'i' && !acNoCorrect.has('i')) return 'I';
+  const isLower = /^[a-z]+$/.test(typed);
+  const isTitle = /^[A-Z][a-z]+$/.test(typed);
+  if (!isLower && !isTitle) return null;
+  const lw = typed.toLowerCase();
+  if (acNoCorrect.has(lw) || PROTECT.has(lw)) return null;
+  if (CONTRACTIONS[lw]){
+    const c = CONTRACTIONS[lw];
+    return isTitle ? c.charAt(0).toUpperCase() + c.slice(1) : c;
+  }
+  return autocorrectWord(typed);
+}
 /*AC-CORE-END*/
 let acRevert = null;                    // {typo, corrected, guardPos}; valid for next backspace only
 try { const _ac = localStorage.getItem('fitaly-autocorrect'); if (_ac !== null) autocorrectOn = _ac === '1'; } catch(e){}
@@ -1701,7 +1731,7 @@ setBtn.addEventListener('click', () => {
   refreshAnchorSeg();
   const vv = window.visualViewport;
   document.getElementById('diag').textContent =
-    'v22 · viewport ' + gAppW + 'x' + gAppH + (gExt ? ' (+' + gExt + ')' : '')
+    'v23 · viewport ' + gAppW + 'x' + gAppH + (gExt ? ' (+' + gExt + ')' : '')
     + ' · eT ' + (parseFloat(getComputedStyle(vpProbe).paddingTop) || 0)
     + ' · inner ' + window.innerWidth + 'x' + window.innerHeight
     + ' · screen ' + screen.width + 'x' + screen.height
