@@ -686,15 +686,19 @@ let lastSpaceT = 0, lastSpacePos = -1;
 function handleSpace(){
   const now = Date.now(), pos = editor.selectionStart;
   if (now - lastSpaceT < 380 && pos === lastSpacePos
-      && editor.selectionEnd === pos && pos >= 2
-      && editor.value.charAt(pos-1) === ' '
-      && /[A-Za-z0-9'")\]]/.test(editor.value.charAt(pos-2))){
-    focusEditor();
-    editor.setSelectionRange(pos-1, pos);   // the space from the first tap
-    insertRaw('. ');
-    lastSpaceT = 0; lastSpacePos = -1;
-    caretIntoView(); computeSuggestions(); updateAutoCap();
-    return;
+      && editor.selectionEnd === pos){
+    /* allow up to two trailing spaces so this also works right after a
+       swipe- or suggestion-inserted word, which carries its own auto-space */
+    let i = pos, sp = 0;
+    while (sp < 2 && i > 0 && editor.value.charAt(i-1) === ' '){ i--; sp++; }
+    if (sp >= 1 && i > 0 && /[A-Za-z0-9'")\]]/.test(editor.value.charAt(i-1))){
+      focusEditor();
+      editor.setSelectionRange(i, pos);     // the trailing space(s)
+      insertRaw('. ');
+      lastSpaceT = 0; lastSpacePos = -1;
+      caretIntoView(); computeSuggestions(); updateAutoCap();
+      return;
+    }
   }
   insertText(' ');
   lastSpaceT = Date.now(); lastSpacePos = editor.selectionStart;
@@ -733,18 +737,53 @@ function updateAutoCap(){
 /* ---------------- Pointer handling on the keyboard ---------------- */
 let active = null;   // {d, x0, y0, candidate, trackpad, caretBase, repT, repeated}
 const TRACKPAD_PX = 8;     // horizontal px per character of caret movement
+const kbArea = document.getElementById('kbwrap');
 
-kb.addEventListener('touchstart', e => e.preventDefault(), {passive:false});
+/* Forgiving tap targets: resolve a press to the nearest key when it lands
+   in a gap between keys or just above the top row — fixes poor pickup of
+   w and the other top-line characters. */
+function keyElAt(x, y){
+  let best = null;
+  for (const k of KEYS){
+    const r = k.el.getBoundingClientRect();
+    const ddx = Math.max(r.left - x, 0, x - r.right);
+    const ddy = Math.max(r.top - y, 0, y - r.bottom);
+    if (ddx === 0 && ddy === 0) return k.el;
+    const d2 = Math.hypot(ddx, ddy);
+    if (!best || d2 < best.d2) best = {d2, el: k.el};
+  }
+  return (best && best.d2 <= 18) ? best.el : null;
+}
+function nearestLetterTo(x, y){
+  const C = ensureKeyGeometry();
+  let best = null;
+  for (const ch in C){
+    const dist = Math.hypot(C[ch].x - x, C[ch].y - y);
+    if (!best || dist < best.dist) best = {ch, dist};
+  }
+  return best;
+}
 
-kb.addEventListener('pointerdown', e => {
-  const el = e.target.closest('.key');
+kbArea.addEventListener('touchstart', e => {
+  if (e.target.closest('#kbHandle')) return;
+  const s = e.target.closest('.sug');
+  if (s && s.textContent) return;
+  e.preventDefault();
+}, {passive:false});
+
+kbArea.addEventListener('pointerdown', e => {
+  if (e.target.closest('#kbHandle')) return;             // handle drags itself
+  const s = e.target.closest('.sug');
+  if (s && s.textContent) return;                        // suggestion bar acts
+  const el = e.target.closest('.key') || keyElAt(e.clientX, e.clientY);
   if (!el) return;
   e.preventDefault();
-  try { kb.setPointerCapture(e.pointerId); } catch(err){}
+  try { kbArea.setPointerCapture(e.pointerId); } catch(err){}
   const d = KEYS[+el.dataset.i];
   active = {d, x0:e.clientX, y0:e.clientY, candidate:null,
             trackpad:false, caretBase:0, repT:0, repeated:false,
-            pts:[{x:e.clientX, y:e.clientY}], plen:0, turn:0, swipe:false};
+            pts:[{x:e.clientX, y:e.clientY}], plen:0, turn:0, swipe:false,
+            t0: Date.now(), lastNear: null, shortWords: null};
   el.classList.add('down');
   /* hold backspace to auto-repeat, accelerating after ~15 deletions */
   if (d.action === 'bsp'){
@@ -760,7 +799,7 @@ kb.addEventListener('pointerdown', e => {
   }
 });
 
-kb.addEventListener('pointermove', e => {
+kbArea.addEventListener('pointermove', e => {
   if (!active) return;
   const dx = e.clientX - active.x0, dy = e.clientY - active.y0;
 
@@ -818,7 +857,25 @@ kb.addEventListener('pointermove', e => {
     active.candidate = null; hideBubble(); return;
   }
   if (active.repT){ clearTimeout(active.repT); active.repT = 0; }  // slide cancels repeat
-  const cand = slideCandidate(active.d, dirFrom(dx, dy));
+  let cand = slideCandidate(active.d, dirFrom(dx, dy));
+  /* A quick flick is a capital; a SLOW drag that lands on another letter
+     is a short word (it, on, no...) — decode it and preview the word. */
+  if (cand && cand.tag === 'capital' && Date.now() - active.t0 > 240){
+    const near = nearestLetterTo(e.clientX, e.clientY);
+    if (near && near.dist <= 0.8*kbKeyW && near.ch !== active.d.ch){
+      if (active.lastNear !== near.ch){
+        active.lastNear = near.ch;
+        const w = decodeSwipe(active.pts);
+        active.shortWords = w.length ? w : null;
+      }
+      if (active.shortWords){
+        cand = {words: active.shortWords, text: active.shortWords[0], tag: 'word'};
+      }
+    } else {
+      active.lastNear = null;
+      active.shortWords = null;
+    }
+  }
   active.candidate = cand;
   if (cand) showBubble(cand, e.clientX, active.d.el);
   else hideBubble();
@@ -830,7 +887,7 @@ function endPointer(e, commit){
   active.d.el.classList.remove('down');
   hideBubble();
   const wasTrackpad = active.trackpad, wasRepeat = active.repeated;
-  const wasSwipe = active.swipe, swipePts = active.pts;
+  const wasSwipe = active.swipe, swipePts = active.pts, t0 = active.t0;
   const c = active.candidate, d = active.d;
   active = null;
   if (!commit || wasTrackpad || wasRepeat){
@@ -846,13 +903,25 @@ function endPointer(e, commit){
   if (c){
     if (c.act === 'fwdDelete') doForwardDelete();
     else if (c.act === 'wordDelete') deleteWordBefore();
+    else if (c.words){ insertSwipeWord(c.words); }
+    else if (c.tag === 'capital' && Date.now() - t0 > 240){
+      /* released after a slow drag: if it ended on another letter, it was
+         a short word even if no move event fired right at release */
+      const last = swipePts[swipePts.length - 1];
+      const near = nearestLetterTo(last.x, last.y);
+      if (near && near.dist <= 0.8*kbKeyW && near.ch !== d.ch){
+        const words = decodeSwipe(swipePts);
+        if (words.length){ insertSwipeWord(words); return; }
+      }
+      insertText(c.text); consumeShift();
+    }
     else { insertText(c.text); consumeShift(); }
   } else {
     commitTap(d);
   }
 }
-kb.addEventListener('pointerup',     e => endPointer(e, true));
-kb.addEventListener('pointercancel', e => endPointer(e, false));
+kbArea.addEventListener('pointerup',     e => endPointer(e, true));
+kbArea.addEventListener('pointercancel', e => endPointer(e, false));
 
 function showBubble(cand, x, keyEl){
   bChar.textContent = cand.text;
@@ -1533,7 +1602,7 @@ setBtn.addEventListener('click', () => {
   refreshAnchorSeg();
   const vv = window.visualViewport;
   document.getElementById('diag').textContent =
-    'v20 · viewport ' + gAppW + 'x' + gAppH + (gExt ? ' (+' + gExt + ')' : '')
+    'v21 · viewport ' + gAppW + 'x' + gAppH + (gExt ? ' (+' + gExt + ')' : '')
     + ' · eT ' + (parseFloat(getComputedStyle(vpProbe).paddingTop) || 0)
     + ' · inner ' + window.innerWidth + 'x' + window.innerHeight
     + ' · screen ' + screen.width + 'x' + screen.height
