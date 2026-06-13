@@ -1,5 +1,5 @@
 /* Fitaly Keyboard — service worker. Bump CACHE version when you update files. */
-const CACHE = 'fitaly-v21';
+const CACHE = 'fitaly-v22';
 const ASSETS = [
   './',
   './index.html',
